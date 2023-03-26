@@ -1,0 +1,120 @@
+# Libraries
+library(sf)
+library(dplyr)
+library(classInt)
+library(tmap)
+library(egg)
+
+# Set Working Directory
+setwd("C:\\Users\\Taylor\\My Drive\\School\\01 Current Semester\\R\\06 Final Project")
+
+# Cleveland Data
+cle <- st_read("Combined_Parcels_-_cleveland_Only\\Combined_Parcels_-_cleveland_Only.shp")
+cle <- cle %>% select(certifie_3, total_acre, geometry)
+cle$tax_prod <- cle$certifie_3 / cle$total_acre
+cle <- cle %>% 
+  filter(!is.na(tax_prod), !is.infinite(tax_prod), tax_prod != 0)
+cle.breaks <- classIntervals(cle$tax_prod, n = 5, style = "fisher")
+cle <- cle %>% mutate(percent_class = cut(tax_prod, cle.breaks$brks, include.lowest = T))
+
+# Cleveland Map
+cle.map <- tm_shape(cle) +
+  tm_fill(col = "tax_prod", style = "fisher", palette = "YlGnBu", 
+          border.alpha = 0, title = "Tax $/Acre", legend.hist = TRUE) +
+  tm_layout(main.title = "Cleveland", main.title.size = 1, frame = FALSE, 
+            legend.outside = TRUE, legend.outside.position = "left",
+            legend.hist.width = 3) +
+  tmap_options(check.and.fix = TRUE)
+
+# Columbus Data
+col <- st_read("Parcel_Boundaries\\Parcel_Boundaries.shp")
+col <- col %>% filter(CVTTXDSCRP == "CITY OF COLUMBUS") %>% select(TOTCNTTXOD, ACRES, geometry)
+col$tax_prod <- col$TOTCNTTXOD / col$ACRES
+col <- col %>% 
+  filter(!is.na(tax_prod), !is.infinite(tax_prod), tax_prod != 0)
+col.breaks <- classIntervals(col$tax_prod, n = 5, style = "fisher")
+col <- col %>% mutate(percent_class = cut(tax_prod, col.breaks$brks, include.lowest = T))
+
+# Columbus Map
+col.map <- tm_shape(col) +
+  tm_fill(col = "tax_prod", style = "fisher", palette = "YlGnBu", 
+          border.alpha = 0, title = "Tax $/Acre") +
+  tm_layout(main.title = "Columbus", main.title.size = 1, frame = FALSE, 
+            legend.outside = TRUE, legend.outside.position = "left") +
+  tmap_options(check.and.fix = TRUE)
+
+# Load Cincinnati parcel data
+cin <- st_read('C:\\Users\\Taylor\\My Drive\\School\\01 Current Semester\\R\\06 Final Project\\cincinnati_parcels\\cincinnati_parcels.shp')
+
+# Filter data to keep relevant columns
+cin <- dplyr::select(cin, c('ANNUAL_TAX', 'ACREDEED', 'geometry'))
+
+# Calculate tax productivity
+cin$tax_prod <- with(cin, ANNUAL_TAX / ACREDEED) 
+
+# Remove missing values, infinite values, and 0's from tax productivity
+cin <- cin %>%
+  filter(!is.na(tax_prod)) %>%
+  filter(!is.infinite(tax_prod)) %>%
+  filter(tax_prod != 0)
+
+# Create classification breaks for tax productivity
+cin.breaks <- classIntervals(cin$tax_prod, n = 5, style = 'fisher')
+
+# Add a column to classify the data based on the breaks
+cin <- cin %>% mutate(percent_class = cut(tax_prod, cin.breaks$brks, include.lowest = T))
+
+# Cincinnati map
+cin_map <- tm_shape(cin) +
+           tm_fill(col = 'tax_prod',
+                   palette = 'YlGnBu',
+                   style = 'fisher',
+                   border.alpha = 0,
+                   title = 'Tax $/Acre') +
+           tm_layout(main.title = 'Cincinnati',
+                     main.title.size = 1,
+                     frame = FALSE,
+                     legend.outside = TRUE,
+                     legend.outside.position = 'left') +
+           tmap_options(check.and.fix = TRUE)
+
+# Parcel size sum
+cle_parcel_sum <- sum(cle$total_acre)
+col_parcel_sum <- sum(col$ACRES)
+cin_parcel_sum <- sum(cin$ACREDEED)
+
+# Average parcel size
+cle_avg_size <- cle_parcel_sum / 133045
+col_avg_size <- col_parcel_sum / 175795
+cin_avg_size <- cin_parcel_sum / 99198
+
+# Total tax income
+cle_tax_sum <- sum(cle$certifie_3)
+col_tax_sum <- sum(col$TOTCNTTXOD)
+cin_tax_sum <- sum(cin$ANNUAL_TAX)
+
+# Plot results
+par(mfrow = c(1,3))
+
+total_parcel_size <- barplot(c(cle_parcel_sum, cin_parcel_sum, col_parcel_sum),
+                             names.arg = c('Cleveland', 'Cincinnati', 'Columbus'),
+                             xlab = 'Acres',
+                             main = 'Total Taxed Parcel Size',
+                             horiz = TRUE)
+
+avg_parcel_size <- barplot(c(cle_avg_size, cin_avg_size, col_avg_size),
+                           names.arg = c('Cleveland', 'Cincinnati', 'Columbus'),
+                           xlab = 'Acres',
+                           main = 'Average Taxed Parcel Size',
+                           horiz = TRUE)
+
+total_tax <- barplot(c(cle_tax_sum, cin_tax_sum, col_tax_sum),
+                     names.arg = c('Cleveland', 'Cincinnati', 'Columbus'),
+                     xlab = 'Dollars',
+                     main = 'Total Tax Income',
+                     horiz = TRUE)
+
+# Analysis
+cle.map
+col.map
+cin.map
